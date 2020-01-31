@@ -29,28 +29,71 @@ namespace ImageAPI.Controllers
 
     private async Task<CloudBlobContainer> GetCloudBlobContainer(string containerName)
     {
-      return null;
+      CloudStorageAccount account = CloudStorageAccount.Parse(
+        _options.StorageConnectionString);
+        CloudBlobClient blobClient = account.CreateCloudBlobClient();
+        CloudBlobContainer container = blobClient.GetContainerReference(containerName);
+        await container.CreateIfNotExistsAsync();
+        return container;
+        
     }
 
     [Route("/")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<string>>> Get()
     {
-      return null;
+      CloudBlobContainer container = await GetCloudBlobContainer
+      (_options.FullImageContainerName);
+      BlobContinuationToken token = null;
+
+      List<IListBlobItem> result = new List<IListBlobItem>();
+      do{
+
+        var response = await container.ListBlobsSegmentedAsync(token);
+        token = response.ContinuationToken;
+        result.AddRange(response.Results);       
+
+      }while(token !=null);
+
+      return Ok(result.Select(b => b.Uri.AbsoluteUri));
+
+
+
+
     }
 
     [Route("/thumbs")]
     [HttpGet]
     public async Task<ActionResult<IEnumerable<string>>> GetThumbs()
     {
-      return null;
+       CloudBlobContainer container = await GetCloudBlobContainer
+      (_options.ThumbnailImageContainerName);
+      BlobContinuationToken token = null;
+
+      List<IListBlobItem> result = new List<IListBlobItem>();
+      do{
+
+        var response = await container.ListBlobsSegmentedAsync(token);
+        token = response.ContinuationToken;
+        result.AddRange(response.Results);       
+
+      }while(token !=null);
+
+      return Ok(result.Select(b => b.Uri.AbsoluteUri));
     }
 
     [Route("/")]
     [HttpPost]
     public async Task<ActionResult> Post()
     {
-      return null;
+      Stream image = Request.Body;
+      CloudBlobContainer container = await GetCloudBlobContainer
+      (_options.FullImageContainerName);
+      string blobName = $"{Guid.NewGuid().ToString().ToLower().Replace("-",string.Empty)}";
+      CloudBlockBlob blockBlob = container.GetBlockBlobReference(blobName);
+      blockBlob.Properties.ContentType = Request.ContentType;
+      await blockBlob.UploadFromStreamAsync(image);
+      return Created(blockBlob.Uri,null);
     }
   }
 }
